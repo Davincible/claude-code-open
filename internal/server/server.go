@@ -30,14 +30,20 @@ type Server struct {
 }
 
 func New(configManager *config.Manager, logger *slog.Logger) *Server {
-	registry := providers.NewRegistry()
-	registry.Initialize()
-
-	return &Server{
-		config:   configManager,
-		registry: registry,
-		logger:   logger,
-	}
+    registry := providers.NewRegistry()
+    registry.Initialize()
+    
+    // Apply domain mappings from config
+    cfg := configManager.Get()
+    if cfg != nil && cfg.DomainMappings != nil {
+        registry.SetDomainMappings(cfg.DomainMappings)
+    }
+    
+    return &Server{
+        config:   configManager,
+        registry: registry,
+        logger:   logger,
+    }
 }
 
 func (s *Server) Start() error {

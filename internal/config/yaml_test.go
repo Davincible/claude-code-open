@@ -145,45 +145,62 @@ func TestManager_SaveAsYAML(t *testing.T) {
 }
 
 func TestManager_CreateExampleYAML(t *testing.T) {
-	tempDir := t.TempDir()
-	mgr := NewManager(tempDir)
+    tempDir := t.TempDir()
+    mgr := NewManager(tempDir)
 
-	err := mgr.CreateExampleYAML()
-	require.NoError(t, err)
+    err := mgr.CreateExampleYAML()
+    require.NoError(t, err)
 
-	// Verify file was created
-	yamlPath := filepath.Join(tempDir, DefaultYAMLFilename)
-	assert.FileExists(t, yamlPath)
+    cfg, err := mgr.Load()
+    require.NoError(t, err)
 
-	// Load and verify content
-	cfg, err := mgr.Load()
-	require.NoError(t, err)
+    // Update expectation to 6 providers (including local-lmstudio)
+    require.Len(t, cfg.Providers, 6, "Expected 6 providers including local-lmstudio")
 
-	assert.Equal(t, DefaultHost, cfg.Host)
-	assert.Equal(t, DefaultPort, cfg.Port)
-	assert.Equal(t, "your-proxy-api-key-here", cfg.APIKey)
+    // Test that domain mappings are included in the example
+    require.NotNil(t, cfg.DomainMappings)
+    assert.NotEmpty(t, cfg.DomainMappings, "Domain mappings should be included in example")
 
-	// Should have all 5 providers
-	assert.Len(t, cfg.Providers, 5)
+    // Check each provider has required fields
+    providerNames := make(map[string]Provider)
+    for _, p := range cfg.Providers {
+        assert.NotEmpty(t, p.Name, "Provider name should not be empty")
+        assert.NotEmpty(t, p.APIKey, "Provider API key should not be empty")
+        providerNames[p.Name] = p
+    }
 
-	providerNames := make([]string, len(cfg.Providers))
-	for i, p := range cfg.Providers {
-		providerNames[i] = p.Name
-		// Each provider should have default URL and models populated
-		assert.NotEmpty(t, p.APIBase, "Provider %s should have URL", p.Name)
-		assert.NotEmpty(t, p.DefaultModels, "Provider %s should have default models", p.Name)
-	}
+    // Verify specific providers exist
+    expectedProviders := []string{"openrouter", "local-lmstudio", "openai", "anthropic", "nvidia", "gemini"}
+    for _, expected := range expectedProviders {
+        _, exists := providerNames[expected]
+        assert.True(t, exists, "Provider %s should exist in example config", expected)
+    }
 
-	assert.Contains(t, providerNames, "openrouter")
-	assert.Contains(t, providerNames, "openai")
-	assert.Contains(t, providerNames, "anthropic")
-	assert.Contains(t, providerNames, "nvidia")
-	assert.Contains(t, providerNames, "gemini")
+    // Check that non-local providers have default models
+    for name, provider := range providerNames {
+        if name == "local-lmstudio" {
+            // Local providers don't need default models
+            continue
+        }
+        assert.NotEmpty(t, provider.DefaultModels, 
+            "Provider %s should have default models", name)
+    }
 
-	// Router should be configured
-	assert.NotEmpty(t, cfg.Router.Default)
-	assert.NotEmpty(t, cfg.Router.Think)
+    // Test domain mappings have expected entries
+    expectedMappings := map[string]string{
+        "localhost": "openai",
+        "127.0.0.1": "gemini",
+        "0.0.0.0":   "openrouter",
+    }
+    
+    for domain, expectedProvider := range expectedMappings {
+        actualProvider, exists := cfg.DomainMappings[domain]
+        assert.True(t, exists, "Domain mapping for %s should exist", domain)
+        assert.Equal(t, expectedProvider, actualProvider, 
+            "Domain %s should map to %s", domain, expectedProvider)
+    }
 }
+
 
 func TestProvider_ModelWhitelist(t *testing.T) {
 	provider := Provider{

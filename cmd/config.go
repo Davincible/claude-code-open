@@ -139,123 +139,166 @@ func runConfigInit(cmd *cobra.Command, _ []string) error {
 }
 
 func runConfigShow(cmd *cobra.Command, _ []string) error {
-	if !cfgMgr.Exists() {
-		color.Yellow("No configuration found. Run 'cco config init' or 'cco config generate' to create one.")
-		return nil
-	}
+    if !cfgMgr.Exists() {
+        color.Yellow("No configuration found. Run 'cco config init' or 'cco config generate' to create one.")
+        return nil
+    }
 
-	cfg, err := cfgMgr.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
+    cfg, err := cfgMgr.Load()
+    if err != nil {
+        return fmt.Errorf("failed to load configuration: %w", err)
+    }
 
-	color.Blue("Current Configuration:")
-	fmt.Printf("  %-15s: %s\n", "Host", cfg.Host)
-	fmt.Printf("  %-15s: %d\n", "Port", cfg.Port)
-	fmt.Printf("  %-15s: %s\n", "API Key", maskString(cfg.APIKey))
-	fmt.Printf("  %-15s: %s\n", "Config Path", cfgMgr.GetPath())
+    color.Blue("Current Configuration:")
+    fmt.Printf("  %-15s: %s\n", "Host", cfg.Host)
+    fmt.Printf("  %-15s: %d\n", "Port", cfg.Port)
+    fmt.Printf("  %-15s: %s\n", "API Key", maskString(cfg.APIKey))
+    fmt.Printf("  %-15s: %s\n", "Config Path", cfgMgr.GetPath())
 
-	// Show config file type
-	configType := "JSON"
-	if cfgMgr.HasYAML() {
-		configType = "YAML"
-	}
+    // Show config file type
+    configType := "JSON"
+    if cfgMgr.HasYAML() {
+        configType = "YAML"
+    }
+    fmt.Printf("  %-15s: %s\n", "Format", configType)
 
-	fmt.Printf("  %-15s: %s\n", "Format", configType)
+    // Show domain mappings if present
+    if len(cfg.DomainMappings) > 0 {
+        fmt.Println("\nDomain Mappings:")
+        for domain, provider := range cfg.DomainMappings {
+            fmt.Printf("  %-15s → %s\n", domain, provider)
+        }
+    }
 
-	fmt.Println("\nProviders:")
+    fmt.Println("\nProviders:")
+    for _, provider := range cfg.Providers {
+        fmt.Printf("  - Name: %s\n", provider.Name)
+        fmt.Printf("    URL: %s\n", provider.APIBase)
+        fmt.Printf("    API Key: %s\n", maskString(provider.APIKey))
 
-	for _, provider := range cfg.Providers {
-		fmt.Printf("  - Name: %s\n", provider.Name)
-		fmt.Printf("    URL: %s\n", provider.APIBase)
-		fmt.Printf("    API Key: %s\n", maskString(provider.APIKey))
+        if len(provider.DefaultModels) > 0 {
+            fmt.Printf("    Default Models: %v\n", provider.DefaultModels)
+        }
 
-		if len(provider.DefaultModels) > 0 {
-			fmt.Printf("    Default Models: %v\n", provider.DefaultModels)
-		}
+        if len(provider.ModelWhitelist) > 0 {
+            fmt.Printf("    Model Whitelist: %v\n", provider.ModelWhitelist)
+        }
 
-		if len(provider.ModelWhitelist) > 0 {
-			fmt.Printf("    Model Whitelist: %v\n", provider.ModelWhitelist)
-		}
+        if len(provider.Models) > 0 {
+            fmt.Printf("    Models: %v\n", provider.Models)
+        }
 
-		if len(provider.Models) > 0 {
-			fmt.Printf("    Models: %v\n", provider.Models)
-		}
+        fmt.Println()
+    }
 
-		fmt.Println()
-	}
+    fmt.Println("Router Configuration:")
+    fmt.Printf("  %-15s: %s\n", "Default", cfg.Router.Default)
 
-	fmt.Println("Router Configuration:")
-	fmt.Printf("  %-15s: %s\n", "Default", cfg.Router.Default)
+    if cfg.Router.Think != "" {
+        fmt.Printf("  %-15s: %s\n", "Think", cfg.Router.Think)
+    }
 
-	if cfg.Router.Think != "" {
-		fmt.Printf("  %-15s: %s\n", "Think", cfg.Router.Think)
-	}
+    if cfg.Router.Background != "" {
+        fmt.Printf("  %-15s: %s\n", "Background", cfg.Router.Background)
+    }
 
-	if cfg.Router.Background != "" {
-		fmt.Printf("  %-15s: %s\n", "Background", cfg.Router.Background)
-	}
+    if cfg.Router.LongContext != "" {
+        fmt.Printf("  %-15s: %s\n", "Long Context", cfg.Router.LongContext)
+    }
 
-	if cfg.Router.LongContext != "" {
-		fmt.Printf("  %-15s: %s\n", "Long Context", cfg.Router.LongContext)
-	}
+    if cfg.Router.WebSearch != "" {
+        fmt.Printf("  %-15s: %s\n", "Web Search", cfg.Router.WebSearch)
+    }
 
-	if cfg.Router.WebSearch != "" {
-		fmt.Printf("  %-15s: %s\n", "Web Search", cfg.Router.WebSearch)
-	}
-
-	return nil
+    return nil
 }
+
 
 func runConfigValidate(cmd *cobra.Command, _ []string) error {
-	if !cfgMgr.Exists() {
-		return errors.New("no configuration found")
-	}
+    if !cfgMgr.Exists() {
+        return errors.New("no configuration found")
+    }
 
-	cfg, err := cfgMgr.Load()
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
-	}
+    cfg, err := cfgMgr.Load()
+    if err != nil {
+        return fmt.Errorf("failed to load configuration: %w", err)
+    }
 
-	// Validation logic
-	var validationErrors []string
+    // Validation logic
+    var validationErrors []string
 
-	if len(cfg.Providers) == 0 {
-		validationErrors = append(validationErrors, "no providers configured")
-	}
+    if len(cfg.Providers) == 0 {
+        validationErrors = append(validationErrors, "no providers configured")
+    }
 
-	for i, provider := range cfg.Providers {
-		if provider.Name == "" {
-			validationErrors = append(validationErrors, fmt.Sprintf("provider %d: name is required", i))
-		}
+    // Validate providers
+    providerNames := make(map[string]bool)
+    for i, provider := range cfg.Providers {
+        if provider.Name == "" {
+            validationErrors = append(validationErrors, fmt.Sprintf("provider %d: name is required", i))
+        } else {
+            providerNames[provider.Name] = true
+        }
 
-		if provider.APIBase == "" {
-			validationErrors = append(validationErrors, fmt.Sprintf("provider %d: API base URL is required", i))
-		}
+        if provider.APIBase == "" {
+            validationErrors = append(validationErrors, fmt.Sprintf("provider %d: API base URL is required", i))
+        }
 
-		if provider.APIKey == "" {
-			validationErrors = append(validationErrors, fmt.Sprintf("provider %d: API key is required", i))
-		}
-	}
+        if provider.APIKey == "" {
+            validationErrors = append(validationErrors, fmt.Sprintf("provider %d: API key is required", i))
+        }
+    }
 
-	if cfg.Router.Default == "" {
-		validationErrors = append(validationErrors, "default router model is required")
-	}
+    // Validate domain mappings reference valid providers
+    if len(cfg.DomainMappings) > 0 {
+        for domain, providerName := range cfg.DomainMappings {
+            if domain == "" {
+                validationErrors = append(validationErrors, "domain mapping: empty domain not allowed")
+                continue
+            }
+            
+            // Check if referenced provider exists (either in config or built-in)
+            builtInProviders := map[string]bool{
+                "openrouter": true,
+                "openai":     true,
+                "anthropic":  true,
+                "nvidia":     true,
+                "gemini":     true,
+            }
+            
+            if !providerNames[providerName] && !builtInProviders[providerName] {
+                validationErrors = append(validationErrors, 
+                    fmt.Sprintf("domain mapping '%s → %s': provider '%s' not found", 
+                        domain, providerName, providerName))
+            }
+        }
+    }
 
-	if len(validationErrors) > 0 {
-		color.Red("Configuration validation failed:")
+    if cfg.Router.Default == "" {
+        validationErrors = append(validationErrors, "default router model is required")
+    }
 
-		for _, err := range validationErrors {
-			fmt.Printf("  - %s\n", err)
-		}
+    if len(validationErrors) > 0 {
+        color.Red("Configuration validation failed:")
+        for _, err := range validationErrors {
+            fmt.Printf("  - %s\n", err)
+        }
+        return errors.New("configuration validation failed")
+    }
 
-		return errors.New("configuration validation failed")
-	}
+    color.Green("Configuration is valid!")
+    
+    // Show additional info about domain mappings if present
+    if len(cfg.DomainMappings) > 0 {
+        color.Cyan("\nDomain mappings configured:")
+        for domain, provider := range cfg.DomainMappings {
+            fmt.Printf("  %s → %s\n", domain, provider)
+        }
+    }
 
-	color.Green("Configuration is valid!")
-
-	return nil
+    return nil
 }
+
 
 func runConfigGenerate(cmd *cobra.Command, _ []string) error {
 	force, err := cmd.Flags().GetBool("force")
@@ -276,26 +319,26 @@ func runConfigGenerate(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Generate example YAML config
-	if err := cfgMgr.CreateExampleYAML(); err != nil {
-		return fmt.Errorf("failed to create example configuration: %w", err)
-	}
+    // Generate example YAML config
+    if err := cfgMgr.CreateExampleYAML(); err != nil {
+        return fmt.Errorf("failed to create example configuration: %w", err)
+    }
 
-	color.Green("Example YAML configuration created: %s", cfgMgr.GetYAMLPath())
-	color.Cyan("\nNext steps:")
-	fmt.Println("1. Edit the configuration file to add your API keys")
-	fmt.Println("2. Customize provider settings and model whitelists as needed")
-	fmt.Println("3. Run 'cco config validate' to check your configuration")
-	fmt.Println("4. Start the router with 'cco start'")
+    color.Green("Example YAML configuration created: %s", cfgMgr.GetYAMLPath())
+    color.Cyan("\nNext steps:")
+    fmt.Println("1. Edit the configuration file to add your API keys")
+    fmt.Println("2. Customize provider settings and model whitelists as needed")
+    fmt.Println("3. Configure domain_mappings to route local servers to providers")
+    fmt.Println("4. Run 'cco config validate' to check your configuration")
+    fmt.Println("5. Start the router with 'cco start'")
 
-	color.Yellow("\nNote: The configuration includes all 5 supported providers:")
-	fmt.Println("- OpenRouter (access to multiple models)")
-	fmt.Println("- OpenAI (GPT models)")
-	fmt.Println("- Anthropic (Claude models)")
-	fmt.Println("- Nvidia (Nemotron models)")
-	fmt.Println("- Google Gemini (Gemini models)")
+    color.Yellow("\nNote: The configuration includes:")
+    fmt.Println("- All 5 supported providers (OpenRouter, OpenAI, Anthropic, Nvidia, Gemini)")
+    fmt.Println("- Domain mappings for local model support (localhost, 127.0.0.1, etc.)")
+    fmt.Println("- Example local LM Studio provider configuration")
+    fmt.Println("- Router configuration for different use cases")
 
-	return nil
+    return nil
 }
 
 func maskString(s string) string {

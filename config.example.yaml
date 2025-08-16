@@ -15,12 +15,15 @@ providers:
     model_whitelist:       # Optional: restrict to specific model patterns
       - claude             # Allow any model containing "claude"
       - gpt-4             # Allow any model containing "gpt-4"
-    # default_models are set automatically based on provider
+
+  # Local LM Studio instance
+  - name: local-lmstudio
+    url: "http://localhost:1234/v1/chat/completions"
+    api_key: "not-needed"  # Local servers typically don't need auth
 
   # OpenAI - Direct access to GPT models
   - name: openai
     api_key: your-openai-api-key
-    # All GPT models will be available by default
 
   # Anthropic - Direct access to Claude models  
   - name: anthropic
@@ -34,19 +37,23 @@ providers:
   - name: gemini
     api_key: your-gemini-api-key
 
+# Domain mappings - route local domains to existing providers
+domain_mappings:
+  localhost: openai       # Route localhost requests to OpenAI provider
+  127.0.0.1: gemini      # Route 127.0.0.1 requests to Gemini provider  
+  0.0.0.0: openrouter    # Route 0.0.0.0 requests to OpenRouter provider
+
 # Router configuration for different use cases
 router:
-  default: openrouter/anthropic/claude-3.5-sonnet           # Default model
-  think: openai/o1-preview                                   # For complex reasoning
-  background: anthropic/claude-3-haiku-20240307             # For background tasks
-  long_context: anthropic/claude-3-5-sonnet-20241022        # For long documents
-  web_search: openrouter/perplexity/llama-3.1-sonar-huge-128k-online  # For web search
+  default: local-lmstudio/qwen/qwen3-coder-30b           # Default to local model
+  think: openai/o1-preview                               # For complex reasoning
+  background: anthropic/claude-3-haiku-20240307         # For background tasks
+  long_context: anthropic/claude-3-5-sonnet-20241022    # For long documents
+  web_search: openrouter/perplexity/llama-3.1-sonar-huge-128k-online
 
 # Features:
-# - YAML takes precedence over JSON configuration
-# - Default URLs are set automatically for all providers
-# - Default models are populated for each provider
-# - Model whitelist allows filtering available models
-# - All 5 major LLM providers are supported
-# - Proxy can be protected with an API key
-# - Different models can be configured for different use cases
+# - domain_mappings allows routing local server requests to existing provider transformations
+# - localhost requests will use OpenAI provider's request/response transformation
+# - This enables local model support without needing a separate LocalProvider
+# - You can map any domain to any configured or built-in provider
+# - Built-in providers: openrouter, openai, anthropic, nvidia, gemini

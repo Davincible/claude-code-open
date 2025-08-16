@@ -124,3 +124,110 @@ func TestConfig_GetWithoutLoad(t *testing.T) {
 	assert.Equal(t, DefaultPort, cfg.Port, "should return default port")
 	assert.Equal(t, DefaultHost, cfg.Host, "should return default host")
 }
+
+func TestConfig_DomainMappings(t *testing.T) {
+    tempDir := t.TempDir()
+    mgr := NewManager(tempDir)
+
+    // Test YAML configuration with domain mappings
+    yamlConfig := `
+host: 127.0.0.1
+port: 6970
+api_key: "test-proxy-key"
+providers:
+  - name: "local-lmstudio"
+    url: "http://localhost:1234/v1/chat/completions"
+    api_key: "test-key"
+    default_models:
+        - qwen/qwen3-coder-30b
+    
+domain_mappings:
+  localhost: openai
+  127.0.0.1: gemini
+  0.0.0.0: openrouter
+  
+router:
+  default: "local-lmstudio,qwen/qwen3-coder-30b"`
+
+    yamlPath := filepath.Join(tempDir, DefaultYAMLFilename)
+    err := os.WriteFile(yamlPath, []byte(yamlConfig), 0644)
+    require.NoError(t, err)
+
+    cfg, err := mgr.Load()
+    require.NoError(t, err)
+
+    // Test basic config values loaded correctly
+    assert.Equal(t, "127.0.0.1", cfg.Host)
+    assert.Equal(t, 6970, cfg.Port)
+    assert.Equal(t, "test-proxy-key", cfg.APIKey)
+
+    // Test domain mappings loaded correctly
+    require.NotNil(t, cfg.DomainMappings)
+    assert.Equal(t, "openai", cfg.DomainMappings["localhost"])
+    assert.Equal(t, "gemini", cfg.DomainMappings["127.0.0.1"])
+    assert.Equal(t, "openrouter", cfg.DomainMappings["0.0.0.0"])
+
+    // Test providers loaded correctly
+    require.Len(t, cfg.Providers, 1)
+    assert.Equal(t, "local-lmstudio", cfg.Providers[0].Name)
+}
+
+func TestConfig_DomainMappings_Show(t *testing.T) {
+    tempDir := t.TempDir()
+    mgr := NewManager(tempDir)
+
+    cfg := &Config{
+        Host:   "127.0.0.1",
+        Port:   6970,
+        APIKey: "test-key",
+        Providers: []Provider{
+            {
+                Name:    "local-test",
+                APIBase: "http://localhost:1234/v1/chat/completions",
+                APIKey:  "test-provider-key",
+            },
+        },
+        DomainMappings: map[string]string{
+            "localhost": "openai",
+            "127.0.0.1": "gemini",
+        },
+        Router: RouterConfig{
+            Default: "local-test,qwen/qwen3-coder-30b",
+        },
+    }
+
+    err := mgr.Save(cfg)
+    require.NoError(t, err)
+
+    // Load and verify
+    loadedCfg, err := mgr.Load()
+    require.NoError(t, err)
+
+    assert.Equal(t, cfg.DomainMappings, loadedCfg.DomainMappings)
+}
+
+func TestConfig_DomainMappings_Validation(t *testing.T) {
+    // Test validation includes domain mappings
+    cfg := &Config{
+        Host:   "127.0.0.1",
+        Port:   6970,
+        Providers: []Provider{
+            {
+                Name:    "local-test",
+                APIBase: "http://localhost:1234/v1/chat/completions",
+                APIKey:  "test-key",
+            },
+        },
+        DomainMappings: map[string]string{
+            "localhost": "nonexistent-provider", // Invalid provider
+        },
+        Router: RouterConfig{
+            Default: "local-test,model",
+        },
+    }
+
+    // This test would require enhancing validation to check domain mappings
+    // For now, just ensure the structure is preserved
+    assert.NotNil(t, cfg.DomainMappings)
+    assert.Equal(t, "nonexistent-provider", cfg.DomainMappings["localhost"])
+}

@@ -77,12 +77,14 @@ type RouterConfig struct {
 }
 
 type Config struct {
-	Host      string       `json:"HOST,omitempty" yaml:"host,omitempty"`
-	Port      int          `json:"PORT,omitempty" yaml:"port,omitempty"`
-	APIKey    string       `json:"APIKEY,omitempty" yaml:"api_key,omitempty"`
-	Providers []Provider   `json:"Providers" yaml:"providers"`
-	Router    RouterConfig `json:"Router" yaml:"router,omitempty"`
+    Host           string            `json:"HOST,omitempty" yaml:"host,omitempty"`
+    Port           int               `json:"PORT,omitempty" yaml:"port,omitempty"`
+    APIKey         string            `json:"APIKEY,omitempty" yaml:"api_key,omitempty"`
+    Providers      []Provider        `json:"Providers" yaml:"providers"`
+    Router         RouterConfig      `json:"Router" yaml:"router,omitempty"`
+    DomainMappings map[string]string `json:"domain_mappings,omitempty" yaml:"domain_mappings,omitempty"`
 }
+
 
 type Manager struct {
 	baseDir     string
@@ -347,49 +349,58 @@ func (m *Manager) HasJSON() bool {
 
 // CreateExampleYAML creates an example YAML configuration with all available providers
 func (m *Manager) CreateExampleYAML() error {
-	cfg := &Config{
-		Host:   DefaultHost,
-		Port:   DefaultPort,
-		APIKey: "your-proxy-api-key-here", // Optional API key to protect the proxy
-		Providers: []Provider{
-			{
-				Name:   "openrouter",
-				APIKey: "your-openrouter-api-key",
-				// URL will be set to default
-				// DefaultModels will be populated from defaults
-				ModelWhitelist: []string{"claude", "gpt-4"}, // Optional: restrict to specific models
-			},
-			{
-				Name:   "openai",
-				APIKey: "your-openai-api-key",
-			},
-			{
-				Name:   "anthropic",
-				APIKey: "your-anthropic-api-key",
-			},
-			{
-				Name:   "nvidia",
-				APIKey: "your-nvidia-api-key",
-			},
-			{
-				Name:   "gemini",
-				APIKey: "your-gemini-api-key",
-			},
-		},
-		Router: RouterConfig{
-			Default:     "openrouter/anthropic/claude-3.5-sonnet",
-			Think:       "openai/o1-preview",
-			Background:  "anthropic/claude-3-haiku-20240307",
-			LongContext: "anthropic/claude-3-5-sonnet-20241022",
-			WebSearch:   "openrouter/perplexity/llama-3.1-sonar-huge-128k-online",
-		},
-	}
+    cfg := &Config{
+        Host:   DefaultHost,
+        Port:   DefaultPort,
+        APIKey: "your-proxy-api-key-here",
+        Providers: []Provider{
+            {
+                Name:           "openrouter",
+                APIKey:         "your-openrouter-api-key",
+                ModelWhitelist: []string{"claude", "gpt-4"},
+            },
+            {
+                Name:    "local-lmstudio",
+                APIBase: "http://localhost:1234/v1/chat/completions",
+                APIKey:  "not-needed",
+            },
+            {
+                Name:   "openai",
+                APIKey: "your-openai-api-key",
+            },
+            {
+                Name:   "anthropic",
+                APIKey: "your-anthropic-api-key",
+            },
+            {
+                Name:   "nvidia",
+                APIKey: "your-nvidia-api-key",
+            },
+            {
+                Name:   "gemini",
+                APIKey: "your-gemini-api-key",
+            },
+        },
+        DomainMappings: map[string]string{
+            "localhost": "openai",
+            "127.0.0.1": "gemini",
+            "0.0.0.0":   "openrouter",
+        },
+        Router: RouterConfig{
+            Default:     "local-lmstudio,qwen/qwen3-coder-30b",
+            Think:       "openai,o1-preview",
+            Background:  "anthropic,claude-3-haiku-20240307",
+            LongContext: "anthropic,claude-3-5-sonnet-20241022",
+            WebSearch:   "openrouter,perplexity/llama-3.1-sonar-huge-128k-online",
+        },
+    }
 
-	// Apply defaults to populate URLs and default models
-	m.applyDefaults(cfg)
+    // Apply defaults to populate URLs and default models
+    m.applyDefaults(cfg)
 
-	return m.SaveAsYAML(cfg)
+    return m.SaveAsYAML(cfg)
 }
+
 
 // IsModelAllowed checks if a model is allowed based on the provider's whitelist
 func (p *Provider) IsModelAllowed(model string) bool {

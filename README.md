@@ -374,6 +374,29 @@ router:
   web_search: openrouter,perplexity/llama-3.1-sonar-huge-128k-online
 ```
 
+### 🗺️ Domain Mappings
+
+Map custom domains (like localhost) to existing providers for local model support:
+
+```yaml
+# config.yaml
+domain_mappings:
+  localhost: openai # Use OpenAI transformations for localhost requests
+  127.0.0.1: gemini # Use Gemini transformations for 127.0.0.1 requests
+  custom.api: openrouter # Use OpenRouter transformations for custom APIs
+
+providers:
+  name: local-lmstudio
+  url: "http://localhost:1234/v1/chat/completions"
+  api_key: "not-needed"
+```
+
+**Benefits:**
+- ✅ **Local Model Support** - Route localhost to existing providers
+- ✅ **Reuse Transformations** - Leverage proven request/response logic
+- ✅ **No Custom Provider Needed** - Use existing provider implementations
+- ✅ **Flexible Mapping** - Any domain can map to any provider
+
 ### 📜 Legacy JSON Format
 
 <details>

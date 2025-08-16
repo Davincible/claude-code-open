@@ -44,6 +44,7 @@ type ContentBlockState struct {
 // Registry manages provider instances
 type Registry struct {
 	providers map[string]Provider
+	domainMappings map[string]string
 }
 
 func NewRegistry() *Registry {
@@ -63,17 +64,30 @@ func (r *Registry) Get(name string) (Provider, bool) {
 	return provider, exists
 }
 
+func (r *Registry) SetDomainMappings(mappings map[string]string) {
+    r.domainMappings = mappings
+}
+
 // GetByDomain returns a provider based on the API base URL domain
 func (r *Registry) GetByDomain(apiBase string) (Provider, error) {
-	u, err := url.Parse(apiBase)
-	if err != nil {
-		return nil, fmt.Errorf("invalid API base URL: %w", err)
-	}
+    u, err := url.Parse(apiBase)
+    if err != nil {
+        return nil, fmt.Errorf("invalid API base URL: %w", err)
+    }
 
-	domain := strings.ToLower(u.Hostname())
+    domain := strings.ToLower(u.Hostname())
 
-	// Domain mapping to provider names
-	domainProviderMap := map[string]string{
+    // Check config-based mappings first
+    if r.domainMappings != nil {
+        if providerName, exists := r.domainMappings[domain]; exists {
+            if provider, found := r.Get(providerName); found {
+                return provider, nil
+            }
+        }
+    }
+
+    // Fall back to hardcoded mappings
+    domainProviderMap := map[string]string{
 		"openrouter.ai":                     "openrouter",
 		"api.openrouter.ai":                 "openrouter",
 		"api.openai.com":                    "openai",
@@ -86,13 +100,13 @@ func (r *Registry) GetByDomain(apiBase string) (Provider, error) {
 		"googleapis.com":                    "gemini",
 	}
 
-	if providerName, exists := domainProviderMap[domain]; exists {
-		if provider, found := r.Get(providerName); found {
-			return provider, nil
-		}
-	}
+    if providerName, exists := domainProviderMap[domain]; exists {
+        if provider, found := r.Get(providerName); found {
+            return provider, nil
+        }
+    }
 
-	return nil, fmt.Errorf("no provider found for domain: %s", domain)
+    return nil, fmt.Errorf("no provider found for domain: %s", domain)
 }
 
 // List returns all registered provider names
